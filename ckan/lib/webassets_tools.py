@@ -15,6 +15,18 @@ from ckan.lib.io import get_ckan_temp_directory
 log = logging.getLogger(__name__)
 env: Environment
 
+# Directories of registered WebAssets libraries, by library name. Files that
+# are not bundled (images, fonts) are served from here, so stylesheets can
+# refer to them with URLs relative to the compiled bundle.
+_library_paths: dict[str, str] = {}
+
+# Only these files are served from library directories. Sources of bundles
+# (CSS, JS) are reachable only through compiled bundles.
+STATIC_FILE_EXTENSIONS = frozenset({
+    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico",
+    ".woff", ".woff2", ".ttf", ".otf", ".eot",
+})
+
 AssetType = Literal["style", "script"]
 
 
@@ -38,6 +50,8 @@ def create_library(name: str, path: str) -> None:
             path,
         )
         return
+
+    _library_paths.setdefault(name, path)
 
     library: dict[str, Any] = YAMLLoader(config_path).load_bundles()
     bundles = {
@@ -75,6 +89,8 @@ def webassets_init() -> None:
     global env
 
     static_path = get_webassets_path()
+
+    _library_paths.clear()
 
     env = Environment()
     env.directory = static_path
@@ -213,6 +229,25 @@ def get_webassets_path() -> str:
         webassets_path = os.path.join(storage_path, "webassets")
 
     return webassets_path
+
+
+def find_library_file(path: str) -> tuple[str, str] | None:
+    """Locate a static file inside a registered library.
+
+    `path` is relative to `ckan.webassets.url` and starts with the library
+    name, e.g. `ckanext-datatablesview/vendor/images/icon.svg`. Returns the
+    library directory and the path inside it, or None when the path does not
+    point to an allowed static file of a registered library.
+    """
+    name, _sep, filename = path.partition("/")
+    library_path = _library_paths.get(name)
+    if not library_path or not filename:
+        return None
+
+    if os.path.splitext(filename)[1].lower() not in STATIC_FILE_EXTENSIONS:
+        return None
+
+    return library_path, filename
 
 
 def add_public_path(path: str, url: str) -> None:

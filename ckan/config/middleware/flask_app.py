@@ -21,7 +21,8 @@ from werkzeug.exceptions import (
     default_exceptions,
     HTTPException,
     Unauthorized,
-    Forbidden
+    Forbidden,
+    NotFound,
 )
 
 from flask_babel import Babel
@@ -47,7 +48,7 @@ import ckan.lib.api_token as api_token
 import ckan.lib.app_globals as app_globals
 import ckan.lib.plugins as lib_plugins
 
-from ckan.lib.webassets_tools import get_webassets_path
+from ckan.lib.webassets_tools import get_webassets_path, find_library_file
 from ckan.lib.i18n import get_locales_from_config
 
 from ckan.plugins import (
@@ -694,7 +695,13 @@ def _setup_webassets(app: CKANApp):
     webassets_folder = get_webassets_path()
 
     def webassets(path: str):
-        return send_from_directory(webassets_folder, path)
+        try:
+            return send_from_directory(webassets_folder, path)
+        except NotFound:
+            found = find_library_file(path)
+            if not found:
+                raise
+            return send_from_directory(*found)
 
     path = config["ckan.webassets.url"].rstrip("/")
     app.add_url_rule(f'{path}/<path:path>', 'webassets.index', webassets)

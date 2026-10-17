@@ -1,0 +1,1 @@
+Serve images and fonts from extension WebAssets libraries under `ckan.webassets.url`, so bundled stylesheets can refer to them with relative URLs. DataPusher's `dotted.png` now works with `ckan.root_path`.
